@@ -1,0 +1,872 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Basal Ganglia Pathways Simulator</title>
+
+<style>
+*{box-sizing:border-box}
+body{
+  margin:0;background:#101b2c;color:#eef4ff;
+  font:16px system-ui,sans-serif;
+}
+main{max-width:1150px;margin:auto;padding:24px}
+h1{font-size:28px;margin:0 0 8px}
+h2{font-size:19px;margin:0 0 12px}
+p{line-height:1.6}
+.panel{
+  background:#192940;border:1px solid #334a65;
+  border-radius:16px;padding:18px;margin:16px 0;
+}
+.muted,.note{color:#b7c7dc}
+.note{font-size:14px}
+.controls{
+  display:flex;flex-wrap:wrap;gap:12px;align-items:center;
+}
+button,select{
+  font:inherit;padding:10px;border-radius:8px;
+  color:#eef4ff;background:#263e5e;
+  border:1px solid #6681a1;cursor:pointer;
+  max-width:100%;
+}
+button:hover,select:hover{border-color:#65dde7}
+button:focus-visible,select:focus-visible,input:focus-visible{
+  outline:3px solid #ffd47c;outline-offset:3px;
+}
+.columns{
+  display:grid;grid-template-columns:1fr 1fr;gap:20px;
+}
+.slider-label{display:block;margin:14px 0 6px}
+input[type=range]{width:100%;accent-color:#65dce5}
+output{color:#ffd47c;font-weight:600}
+.legend{
+  display:flex;flex-wrap:wrap;gap:18px;
+  margin-top:15px;font-size:14px;
+}
+.dot{
+  display:inline-block;width:12px;height:12px;
+  border-radius:50%;margin-right:5px;
+}
+.scroll{overflow-x:auto}
+svg{display:block;width:100%;height:auto}
+.scroll svg{min-width:700px}
+.metric{
+  padding:14px;border:1px solid #445b76;border-radius:12px;
+}
+.metric strong{display:block;margin-bottom:8px}
+.bar{
+  height:16px;background:#0c1727;border-radius:8px;
+  overflow:hidden;margin:8px 0;
+}
+.fill{height:100%;background:#66d9c7;transition:width .15s}
+.compare{height:5px;background:#879bb5;transition:width .15s}
+#direction{color:#ffd47c}
+a{color:#8ddbe9}
+footer{
+  text-align:center;margin-top:28px;padding-top:16px;
+  border-top:1px solid #334a65;
+}
+table{width:100%;border-collapse:collapse;font-size:14px}
+td,th{
+  text-align:left;vertical-align:top;padding:10px;
+  border-bottom:1px solid #3a506b;line-height:1.5;
+}
+@media(max-width:650px){
+  main{padding:14px}
+  h1{font-size:24px}
+  .columns{grid-template-columns:1fr}
+  select{width:100%}
+}
+</style>
+</head>
+
+<body>
+<main>
+<h1>Basal Ganglia Pathways</h1>
+<p class="muted">
+  Direct, indirect, and hyperdirect pathways:
+  connectivity, dopamine modulation, and selected clinical patterns.
+</p>
+
+<div class="panel">
+  <div class="controls">
+    <label for="case">Clinical example:</label>
+    <select id="case">
+      <option value="normal">Normal reference</option>
+      <option value="pd">Parkinson disease: reduced dopamine</option>
+      <option value="hd">Early Huntington disease: indirect pathway loss</option>
+      <option value="stn">STN lesion: hemiballismus model</option>
+      <option value="custom">Custom parameters</option>
+    </select>
+
+    <button id="play" type="button">Pause signals</button>
+    <button id="reset" type="button">Reset to normal</button>
+  </div>
+
+  <div class="controls" style="margin-top:15px">
+    <label for="pathway">Highlight:</label>
+    <select id="pathway">
+      <option value="all">All pathways</option>
+      <option value="direct">Direct pathway</option>
+      <option value="indirect">Indirect pathway</option>
+      <option value="hyper">Hyperdirect pathway</option>
+    </select>
+
+    <label for="side">Modeled circuit side:</label>
+    <select id="side">
+      <option value="R">Right</option>
+      <option value="L">Left</option>
+    </select>
+  </div>
+
+  <p class="note">
+    Highlighting a pathway changes the display only.
+    All pathways remain included in the numerical model.
+    Side selection is used for the unilateral STN lesion example.
+  </p>
+
+  <div class="columns">
+    <div>
+      <label class="slider-label" for="drive">
+        Cortical input:
+        <output id="driveValue"></output>
+      </label>
+      <input id="drive" type="range" min="0" max="100" value="60">
+
+      <label class="slider-label" for="dopamine">
+        Dopamine modulation:
+        <output id="dopamineValue"></output>
+      </label>
+      <input id="dopamine" type="range" min="0" max="100" value="70">
+    </div>
+
+    <div>
+      <label class="slider-label" for="d2gain">
+        Indirect-pathway striatal population function:
+        <output id="d2gainValue"></output>
+      </label>
+      <input id="d2gain" type="range" min="0" max="100" value="100">
+
+      <label class="slider-label" for="stngain">
+        STN function:
+        <output id="stngainValue"></output>
+      </label>
+      <input id="stngain" type="range" min="0" max="100" value="100">
+    </div>
+  </div>
+
+  <p class="note">
+    Sliders represent normalized model parameters, not measured
+    dopamine concentrations, cell counts, or clinical severity.
+    Changing a disease-related parameter selects Custom parameters.
+  </p>
+
+  <div class="legend">
+    <span><i class="dot" style="background:#7ee1b3"></i>Excitatory: arrowhead (+)</span>
+    <span><i class="dot" style="background:#ff9a9a"></i>Inhibitory: bar ending (−)</span>
+    <span><i class="dot" style="background:#cab0ff"></i>Dopamine modulation: dashed</span>
+  </div>
+</div>
+
+<div class="panel">
+  <h2>Circuit</h2>
+  <p id="pathwayDescription"></p>
+  <div class="scroll">
+    <svg id="circuit" viewBox="0 0 1100 850" role="img"
+         aria-label="Basal ganglia direct, indirect and hyperdirect circuits">
+      <defs>
+        <marker id="excite" viewBox="0 0 10 10"
+                refX="9" refY="5" markerWidth="5"
+                markerHeight="5" orient="auto">
+          <path d="M0 0 L10 5 L0 10 Z" fill="#7ee1b3"/>
+        </marker>
+        <marker id="inhibit" viewBox="0 0 10 12"
+                refX="5" refY="6" markerWidth="5"
+                markerHeight="6" orient="auto">
+          <path d="M5 0 V12" stroke="#ff9a9a" stroke-width="3"/>
+        </marker>
+      </defs>
+
+      <g id="edges"></g>
+      <g id="edgeLabels"></g>
+      <g id="nodes"></g>
+      <g id="packets"></g>
+
+      <text x="550" y="835" text-anchor="middle"
+            fill="#b7c7dc" font-size="14">
+        Values are arbitrary normalized activity units, not spikes per second.
+      </text>
+    </svg>
+  </div>
+</div>
+
+<div class="panel">
+  <h2>Integrated model output</h2>
+  <div class="columns">
+    <div class="metric">
+      <strong>GPi/SNr inhibitory output</strong>
+      <div class="bar"><div id="gpiBar" class="fill"></div></div>
+      <div id="gpiReference" class="compare"></div>
+      <p id="gpiText"></p>
+    </div>
+    <div class="metric">
+      <strong>Thalamic activity</strong>
+      <div class="bar"><div id="thBar" class="fill"></div></div>
+      <div id="thReference" class="compare"></div>
+      <p id="thText"></p>
+    </div>
+  </div>
+  <p class="note">
+    Thin gray bars: normal reference at the same cortical input.
+    Green bars: current parameters.
+  </p>
+  <p id="direction"></p>
+</div>
+
+<div class="panel">
+  <h2>Clinical interpretation</h2>
+  <div id="clinical"></div>
+</div>
+
+<div class="panel">
+  <h2>Essential comparisons</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Example</th>
+        <th>Classical circuit explanation</th>
+        <th>Clinical association</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Parkinson disease</td>
+        <td>
+          Reduced SNc dopamine weakens D1-mediated facilitation
+          and reduces D2-mediated suppression of indirect-pathway neurons.
+        </td>
+        <td>
+          Bradykinesia and hypokinetic motor dysfunction.
+          Tremor and rigidity are not generated by this model.
+        </td>
+      </tr>
+      <tr>
+        <td>Early Huntington disease</td>
+        <td>
+          Preferential early dysfunction/loss of indirect-pathway
+          striatal projection neurons reduces suppression of unwanted actions.
+        </td>
+        <td>
+          Chorea. Cognitive and psychiatric manifestations and
+          later-stage disease are outside this model.
+        </td>
+      </tr>
+      <tr>
+        <td>Unilateral STN lesion</td>
+        <td>
+          Reduced excitatory drive to GPi/SNr decreases inhibitory
+          output to the thalamus in the classical model.
+        </td>
+        <td>
+          Contralateral hemiballismus/hemichorea.
+          Similar movements can arise from lesions elsewhere in the network.
+        </td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="panel note">
+  <h2>Model assumptions</h2>
+  <p>
+    This is a feed-forward educational implementation of the
+    classical rate model. GPi/SNr and GPe have tonic baseline
+    activity. Inhibiting an inhibitory output can disinhibit
+    the next structure; an inhibitory synapse does not thereby
+    become an excitatory synapse.
+  </p>
+  <p>
+    Direct and indirect pathways are not simply isolated
+    “movement on” and “movement off” switches. They can be
+    coactive during behavior and participate in action selection.
+    The hyperdirect pathway provides a relatively rapid cortical
+    route to basal ganglia output via STN; its functional roles
+    are more complex than a universal emergency brake.
+  </p>
+  <p>
+    GPi and SNr are grouped as output nuclei, although their
+    projections and functions are not identical. The diagram
+    represents a motor thalamocortical loop. Additional
+    pallidal, striatal, brainstem, and recurrent connections,
+    spatially organized action channels, and nonmotor loops
+    are omitted.
+  </p>
+  <p>
+    Moving dots indicate the direction and sign of connections.
+    Their speed and number do not represent conduction delays,
+    firing frequency, or synaptic strength. Node brightness
+    and bars reflect arbitrary model activity.
+  </p>
+  <p>
+    Disease presets illustrate selected circuit mechanisms.
+    They are not complete disease models. The simulator does
+    not predict clinical severity, reproduce movement waveforms,
+    simulate treatment, or equate DBS with a destructive lesion.
+  </p>
+
+  <details>
+    <summary>View model equations</summary>
+    <p>
+      All values are clipped to the range 0–1.
+      C = cortical input; D = dopamine parameter;
+      I = indirect population function; S = STN function.
+      Coefficients are illustrative.
+    </p>
+    <pre style="white-space:pre-wrap">
+D1 = C × (0.30 + 0.70D)
+D2 = C × (1 − 0.60D) × I
+GPe = clip(0.80 − 0.70D2)
+STN = clip(0.15 + 0.65(1 − GPe) + 0.30C) × S
+GPi/SNr = clip(0.50 + 0.60STN − 0.60D1)
+Thalamus = clip(0.95 − 0.80GPi/SNr)
+    </pre>
+    <p>
+      These equations encode selected signs and trends.
+      Thalamic activity is not equivalent to movement amplitude.
+      The displayed cortical return connection is not solved
+      as a recurrent feedback system.
+    </p>
+  </details>
+
+  <p>
+    References:
+    <a href="https://pmc.ncbi.nlm.nih.gov/articles/PMC6039104/"
+       target="_blank" rel="noopener noreferrer">
+      Basal ganglia anatomy, physiology, and clinical syndromes
+    </a>
+    ·
+    <a href="https://pmc.ncbi.nlm.nih.gov/articles/PMC3149683/"
+       target="_blank" rel="noopener noreferrer">
+      Corticostriatal and corticosubthalamic pathways
+    </a>
+    ·
+    <a href="https://pubmed.ncbi.nlm.nih.gov/25032493/"
+       target="_blank" rel="noopener noreferrer">
+      Reassessing basal ganglia models
+    </a>
+    ·
+    <a href="https://pmc.ncbi.nlm.nih.gov/articles/PMC4924423/"
+       target="_blank" rel="noopener noreferrer">
+      Corticostriatal dysfunction in Huntington disease
+    </a>
+    ·
+    <a href="https://pmc.ncbi.nlm.nih.gov/articles/PMC3570045/"
+       target="_blank" rel="noopener noreferrer">
+      Movement disorders after stroke
+    </a>
+  </p>
+</div>
+
+<footer class="note">
+  <p>
+    Developed by <strong>Adisorn Ratanayotha</strong><br>
+    Faculty of Medicine Siriraj Hospital,<br>
+    Mahidol University, Thailand
+  </p>
+</footer>
+</main>
+
+<script>
+"use strict";
+
+const $ = id => document.getElementById(id);
+const NS = "http://www.w3.org/2000/svg";
+const clamp = x => Math.max(0, Math.min(1, x));
+
+let playing = true;
+let clock = 0;
+let last = null;
+
+function svg(tag, attributes, parent) {
+  const e = document.createElementNS(NS, tag);
+  for (const [key, value] of Object.entries(attributes)) {
+    e.setAttribute(key, value);
+  }
+  parent.appendChild(e);
+  return e;
+}
+
+function parameters() {
+  return {
+    C: Number($("drive").value) / 100,
+    D: Number($("dopamine").value) / 100,
+    I: Number($("d2gain").value) / 100,
+    S: Number($("stngain").value) / 100
+  };
+}
+
+function model(p) {
+  const D1 = p.C * (0.30 + 0.70 * p.D);
+  const D2 = p.C * (1 - 0.60 * p.D) * p.I;
+  const GPe = clamp(0.80 - 0.70 * D2);
+  const STN =
+    clamp(0.15 + 0.65 * (1 - GPe) + 0.30 * p.C) * p.S;
+  const GPi = clamp(0.50 + 0.60 * STN - 0.60 * D1);
+  const TH = clamp(0.95 - 0.80 * GPi);
+
+  return {
+    CX: p.C,
+    SN: p.D,
+    D1,
+    D2,
+    GPE: GPe,
+    STN,
+    GPI: GPi,
+    TH
+  };
+}
+
+const nodeDefinitions = {
+  CX:  { x:550, y:60,  title:"Motor-related cortex", sub:"Cortical input" },
+  D1:  { x:235, y:225, title:"Striatum: direct", sub:"D1-enriched SPNs" },
+  SN:  { x:550, y:215, title:"SNc", sub:"Dopamine modulation" },
+  D2:  { x:865, y:225, title:"Striatum: indirect", sub:"D2-enriched SPNs" },
+  GPE: { x:865, y:385, title:"GPe", sub:"Tonic inhibitory nucleus" },
+  STN: { x:550, y:485, title:"STN", sub:"Excitatory output" },
+  GPI: { x:235, y:550, title:"GPi / SNr", sub:"Tonic inhibitory output" },
+  TH:  { x:235, y:735, title:"Motor thalamus", sub:"Thalamocortical drive" }
+};
+
+const nodeElements = {};
+
+const edgeDefinitions = [
+  {
+    id:"cD1", from:"CX", to:"D1", sign:"+",
+    groups:["direct"],
+    d:"M470 95 Q330 120 235 180",
+    label:[310,125,"Glutamate +"]
+  },
+  {
+    id:"d1G", from:"D1", to:"GPI", sign:"-",
+    groups:["direct"],
+    d:"M235 270 V505",
+    label:[160,410,"GABA −"]
+  },
+  {
+    id:"cD2", from:"CX", to:"D2", sign:"+",
+    groups:["indirect"],
+    d:"M630 95 Q770 120 865 180",
+    label:[790,125,"Glutamate +"]
+  },
+  {
+    id:"d2E", from:"D2", to:"GPE", sign:"-",
+    groups:["indirect"],
+    d:"M865 270 V340",
+    label:[965,310,"GABA −"]
+  },
+  {
+    id:"eS", from:"GPE", to:"STN", sign:"-",
+    groups:["indirect"],
+    d:"M785 410 L640 465",
+    label:[755,475,"GABA −"]
+  },
+  {
+    id:"cS", from:"CX", to:"STN", sign:"+",
+    groups:["hyper"],
+    d:"M550 105 C390 130 390 390 520 440",
+    label:[385,350,"Hyperdirect +"]
+  },
+  {
+    id:"sG", from:"STN", to:"GPI", sign:"+",
+    groups:["indirect","hyper"],
+    d:"M460 505 L325 535",
+    label:[415,560,"Glutamate +"]
+  },
+  {
+    id:"gT", from:"GPI", to:"TH", sign:"-",
+    groups:["direct","indirect","hyper"],
+    d:"M235 595 V690",
+    label:[140,650,"GABA −"]
+  },
+  {
+    id:"tC", from:"TH", to:"CX", sign:"+",
+    groups:["direct","indirect","hyper"],
+    d:"M325 755 C1070 820 1080 35 645 60",
+    label:[925,685,"Glutamate +"]
+  },
+  {
+    id:"sn1", from:"SN", to:"D1", sign:"mod",
+    groups:["direct"],
+    d:"M460 215 H325",
+    label:[390,190,"D1: facilitates"]
+  },
+  {
+    id:"sn2", from:"SN", to:"D2", sign:"mod",
+    groups:["indirect"],
+    d:"M640 215 H775",
+    label:[710,190,"D2: suppresses"]
+  }
+];
+
+const edgeElements = [];
+
+for (const definition of edgeDefinitions) {
+  const color = definition.sign === "+"
+    ? "#7ee1b3"
+    : definition.sign === "-"
+      ? "#ff9a9a"
+      : "#cab0ff";
+
+  const attributes = {
+    d: definition.d,
+    fill: "none",
+    stroke: color,
+    "stroke-width": 5
+  };
+
+  if (definition.sign === "mod") {
+    attributes["stroke-dasharray"] = "8 6";
+  } else {
+    attributes["marker-end"] =
+      definition.sign === "+" ? "url(#excite)" : "url(#inhibit)";
+  }
+
+  const path = svg("path", attributes, $("edges"));
+
+  const label = svg("text", {
+    x: definition.label[0],
+    y: definition.label[1],
+    fill: color,
+    "font-size": 14,
+    "text-anchor": "middle"
+  }, $("edgeLabels"));
+
+  label.textContent = definition.label[2];
+
+  const packet = svg("circle", {
+    r: 6,
+    fill: color,
+    stroke: "#101b2c",
+    "stroke-width": 1
+  }, $("packets"));
+
+  edgeElements.push({
+    ...definition,
+    path,
+    label,
+    packet,
+    length: path.getTotalLength()
+  });
+}
+
+for (const [id, definition] of Object.entries(nodeDefinitions)) {
+  const group = svg("g", {}, $("nodes"));
+
+  const rect = svg("rect", {
+    x: definition.x - 105,
+    y: definition.y - 45,
+    width: 210,
+    height: 90,
+    rx: 14,
+    fill: "#263e5e",
+    stroke: "#6986a5",
+    "stroke-width": 2
+  }, group);
+
+  const title = svg("text", {
+    x: definition.x,
+    y: definition.y - 18,
+    fill: "#eef4ff",
+    "font-size": 16,
+    "text-anchor": "middle"
+  }, group);
+  title.textContent = definition.title;
+
+  const sub = svg("text", {
+    x: definition.x,
+    y: definition.y + 3,
+    fill: "#bbcada",
+    "font-size": 12,
+    "text-anchor": "middle"
+  }, group);
+  sub.textContent = definition.sub;
+
+  const value = svg("text", {
+    x: definition.x,
+    y: definition.y + 28,
+    fill: "#ffd47c",
+    "font-size": 15,
+    "text-anchor": "middle"
+  }, group);
+
+  nodeElements[id] = { rect, value };
+}
+
+const pathwayDescriptions = {
+  all:
+    "Integrated display: the three pathways converge on " +
+    "basal ganglia output. Dopamine modulates the two " +
+    "striatal populations differently.",
+
+  direct:
+    "Cortex (+) → direct striatal SPNs (−) → GPi/SNr (−) " +
+    "→ thalamus (+) → cortex. Inhibiting GPi/SNr can " +
+    "disinhibit the thalamus.",
+
+  indirect:
+    "Cortex (+) → indirect striatal SPNs (−) → GPe (−) " +
+    "→ STN (+) → GPi/SNr (−) → thalamus. Reducing GPe " +
+    "inhibition can increase STN drive to the output nuclei.",
+
+  hyper:
+    "Cortex (+) → STN (+) → GPi/SNr (−) → thalamus. " +
+    "This cortical route bypasses the striatum."
+};
+
+function focusIncludes(edge) {
+  const focus = $("pathway").value;
+  return focus === "all" || edge.groups.includes(focus);
+}
+
+function updateCircuit(activity, p) {
+  for (const [id, node] of Object.entries(nodeElements)) {
+    const a = activity[id];
+    node.value.textContent = `Model activity: ${a.toFixed(2)}`;
+
+    node.rect.setAttribute(
+      "fill",
+      `rgb(${30 + Math.round(a * 10)},
+           ${48 + Math.round(a * 55)},
+           ${68 + Math.round(a * 30)})`
+    );
+
+    const impaired =
+      (id === "SN" && p.D < 0.70) ||
+      (id === "D2" && p.I < 1) ||
+      (id === "STN" && p.S < 1);
+
+    node.rect.setAttribute(
+      "stroke", impaired ? "#ff9999" : "#6986a5"
+    );
+  }
+
+  for (const edge of edgeElements) {
+    const focus = focusIncludes(edge);
+    edge.path.style.opacity = focus ? 0.9 : 0.12;
+    edge.label.style.opacity = focus ? 1 : 0.15;
+  }
+
+  $("pathwayDescription").textContent =
+    pathwayDescriptions[$("pathway").value];
+}
+
+function updateClinical() {
+  const example = $("case").value;
+  const side = $("side").value === "R" ? "right" : "left";
+  const opposite = side === "right" ? "left" : "right";
+
+  let html;
+
+  if (example === "normal") {
+    html = `
+      <p><strong>Normal reference.</strong>
+      Tonic pallidal/nigral inhibition is modulated by the
+      three pathways. Dopamine facilitates direct-pathway
+      SPNs through D1-associated signaling and suppresses
+      indirect-pathway SPNs through D2-associated signaling
+      in the classical formulation.</p>
+    `;
+  } else if (example === "pd") {
+    html = `
+      <p><strong>Parkinson disease.</strong>
+      The preset reduces dopamine modulation to illustrate
+      loss of nigrostriatal dopaminergic function.</p>
+      <p>In this rate model, direct striatal activity decreases
+      and indirect striatal activity increases. GPe activity
+      decreases, STN activity increases, and GPi/SNr inhibitory
+      output rises relative to the normal reference.</p>
+      <p>This illustrates a circuit explanation of hypokinetic
+      dysfunction. Parkinson disease also involves abnormal
+      timing, synchrony, and broader network changes.
+      Rest tremor and rigidity are not explained by the
+      numerical bars alone.</p>
+    `;
+  } else if (example === "hd") {
+    html = `
+      <p><strong>Early Huntington disease.</strong>
+      The preset reduces the function of the indirect-pathway
+      striatal population while retaining direct-pathway function.</p>
+      <p>In the classical model, reduced inhibition of GPe
+      increases its activity, lowers STN activity, and reduces
+      GPi/SNr inhibitory output. This illustrates reduced
+      suppression of unwanted actions associated with chorea.</p>
+      <p>This is an early-stage teaching pattern, not a model
+      of the entire disease. Later involvement of additional
+      striatal populations and cortical networks can produce
+      different motor and nonmotor findings.</p>
+    `;
+  } else if (example === "stn") {
+    html = `
+      <p><strong>${side[0].toUpperCase() + side.slice(1)}
+      STN lesion.</strong>
+      The preset removes modeled STN output.
+      Both the indirect and hyperdirect routes lose
+      their STN contribution to GPi/SNr.</p>
+      <p>Reduced basal ganglia inhibitory output is the
+      classical explanation for disinhibition associated
+      with <strong>${opposite}-sided hemiballismus</strong>:
+      irregular, large-amplitude flinging movements.</p>
+      <p>Hemiballismus is not exclusive to STN lesions.
+      Other lesions and metabolic disturbances affecting
+      the connected network can cause hemichorea-ballism.</p>
+    `;
+  } else {
+    html = `
+      <p><strong>Custom parameters.</strong>
+      Inspect how the selected changes affect this
+      simplified circuit. A numerical output pattern
+      does not establish a diagnosis.</p>
+      <p>Red node outlines indicate a parameter reduced
+      below its normal reference setting.</p>
+    `;
+  }
+
+  $("clinical").innerHTML = html;
+}
+
+function update() {
+  const p = parameters();
+  const activity = model(p);
+  const reference = model({ C:p.C, D:0.70, I:1, S:1 });
+
+  for (const id of ["drive","dopamine","d2gain","stngain"]) {
+    $(id + "Value").textContent =
+      (Number($(id).value) / 100).toFixed(2);
+  }
+
+  updateCircuit(activity, p);
+
+  $("gpiBar").style.width = activity.GPI * 100 + "%";
+  $("thBar").style.width = activity.TH * 100 + "%";
+  $("gpiReference").style.width = reference.GPI * 100 + "%";
+  $("thReference").style.width = reference.TH * 100 + "%";
+
+  $("gpiText").textContent =
+    `Current: ${activity.GPI.toFixed(2)}; ` +
+    `normal reference: ${reference.GPI.toFixed(2)}.`;
+
+  $("thText").textContent =
+    `Current: ${activity.TH.toFixed(2)}; ` +
+    `normal reference: ${reference.TH.toFixed(2)}.`;
+
+  const difference = activity.GPI - reference.GPI;
+
+  $("direction").textContent = Math.abs(difference) < 0.005
+    ? "GPi/SNr output is approximately equal to the normal model reference."
+    : difference > 0
+      ? "Compared with normal: greater modeled inhibition of the thalamus."
+      : "Compared with normal: less modeled inhibition of the thalamus.";
+
+  updateClinical();
+  drawPackets();
+}
+
+function drawPackets() {
+  const p = parameters();
+  const activity = model(p);
+
+  edgeElements.forEach((edge, i) => {
+    const blocked =
+      (edge.from === "STN" && p.S === 0) ||
+      (edge.from === "D2" && p.I === 0) ||
+      (edge.from === "SN" && p.D === 0);
+
+    const activeSource = activity[edge.from] > 0.001;
+    const visible =
+      focusIncludes(edge) && !blocked && activeSource;
+
+    edge.packet.style.display = visible ? "" : "none";
+
+    if (!visible) return;
+
+    const fraction = (clock * 0.23 + i * 0.137) % 1;
+    const point = edge.path.getPointAtLength(
+      fraction * edge.length
+    );
+
+    edge.packet.setAttribute("cx", point.x);
+    edge.packet.setAttribute("cy", point.y);
+  });
+}
+
+function applyPreset(example) {
+  const presets = {
+    normal: { D:70, I:100, S:100 },
+    pd:     { D:10, I:100, S:100 },
+    hd:     { D:70, I:15,  S:100 },
+    stn:    { D:70, I:100, S:0 }
+  };
+
+  const preset = presets[example];
+  if (!preset) return;
+
+  $("dopamine").value = preset.D;
+  $("d2gain").value = preset.I;
+  $("stngain").value = preset.S;
+}
+
+$("case").addEventListener("change", () => {
+  applyPreset($("case").value);
+  update();
+});
+
+$("drive").addEventListener("input", update);
+
+for (const id of ["dopamine","d2gain","stngain"]) {
+  $(id).addEventListener("input", () => {
+    $("case").value = "custom";
+    update();
+  });
+}
+
+$("pathway").addEventListener("change", update);
+$("side").addEventListener("change", update);
+
+$("play").addEventListener("click", () => {
+  playing = !playing;
+  last = null;
+  $("play").textContent = playing
+    ? "Pause signals"
+    : "Play signals";
+});
+
+$("reset").addEventListener("click", () => {
+  $("case").value = "normal";
+  $("pathway").value = "all";
+  $("side").value = "R";
+  $("drive").value = 60;
+  applyPreset("normal");
+  clock = 0;
+  update();
+});
+
+document.addEventListener("visibilitychange", () => {
+  last = null;
+});
+
+function frame(timestamp) {
+  if (last !== null && playing) {
+    clock += Math.min((timestamp - last) / 1000, 0.1);
+  }
+
+  last = timestamp;
+  drawPackets();
+  requestAnimationFrame(frame);
+}
+
+update();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
